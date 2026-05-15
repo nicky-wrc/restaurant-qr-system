@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { getCustomerMenuAbsoluteUrl } from "@/lib/public-app-url";
 import { getAccessToken } from "@/lib/auth-storage";
 import { notifyConfirm, notifyError, notifySuccess } from "@/lib/notify";
 
@@ -139,30 +140,33 @@ export default function StaffDashboardPage() {
     }
   }
 
+  function closeDetailsMenu(target: EventTarget & HTMLElement) {
+    const root = target.closest("details");
+    if (root) root.open = false;
+  }
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-stone-900">แดชบอร์ด</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-900">แดชบอร์ด</h1>
         <p className="mt-1 text-sm text-stone-600">
           จัดการโต๊ะและลิงก์ให้ลูกค้าสั่งอาหาร
         </p>
       </div>
 
       {canManageTables && (
-        <section className="mb-10 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-            เพิ่มโต๊ะใหม่
-          </h2>
+        <section className="mb-10 rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm ring-1 ring-stone-900/5">
+          <h2 className="text-sm font-semibold text-stone-800">เพิ่มโต๊ะใหม่</h2>
           <form onSubmit={createTable} className="mt-3 flex flex-wrap gap-2">
             <input
-              className="min-w-[200px] flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm"
+              className="min-w-[200px] flex-1 rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2.5 text-sm outline-none ring-stone-900/10 transition placeholder:text-stone-400 focus:border-stone-300 focus:bg-white focus:ring-2"
               placeholder="ชื่อโต๊ะ เช่น โต๊ะ 3"
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
             />
             <button
               type="submit"
-              className="rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+              className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-stone-800"
             >
               สร้างโต๊ะ
             </button>
@@ -171,93 +175,207 @@ export default function StaffDashboardPage() {
       )}
 
       <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-          โต๊ะและลิงก์ลูกค้า
-        </h2>
-        <p className="mt-1 text-sm text-stone-600">
-          โต๊ะต้องเป็น <strong>เปิด</strong> ลูกค้าถึงจะสั่งได้
-        </p>
-        <ul className="mt-4 space-y-3">
-          {tables.map((t) => (
-            <li
-              key={t.id}
-              className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-stone-800">โต๊ะและลิงก์ลูกค้า</h2>
+          {tables.length > 0 && (
+            <Link
+              href="/staff/print-qr?all=1"
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-300 hover:bg-stone-50"
             >
-              <div>
-                <p className="font-medium text-stone-900">{t.label}</p>
-                <p className="text-xs text-stone-500">
-                  สถานะ:{" "}
-                  <span className={t.status === "OPEN" ? "text-emerald-700" : "text-stone-600"}>
-                    {t.status === "OPEN" ? "เปิดรับออเดอร์" : "ปิด"}
-                  </span>
-                </p>
-                <p className="mt-1 max-w-md truncate font-mono text-xs text-stone-400">
-                  /t/{t.qrToken}
-                </p>
-                <p className="mt-1 break-all font-mono text-[11px] text-stone-500">
-                  {typeof window !== "undefined"
-                    ? `${window.location.origin}/t/${t.qrToken}`
-                    : ""}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={busyId === t.id}
-                  onClick={() => {
-                    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/t/${t.qrToken}`;
-                    void navigator.clipboard.writeText(url).then(
-                      () => void notifySuccess("คัดลอกลิงก์แล้ว", "นำไปแชร์ให้ลูกค้าได้เลย"),
-                      () => void notifyError("คัดลอกไม่สำเร็จ", "ลองเลือกข้อความแล้วคัดลอกด้วยมือ"),
-                    );
-                  }}
-                  className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50 disabled:opacity-40"
-                >
-                  คัดลอกลิงก์
-                </button>
-                <Link
-                  href={`/t/${t.qrToken}`}
-                  className="rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-800"
-                >
-                  เปิดหน้าลูกค้า
-                </Link>
-                <button
-                  type="button"
-                  disabled={busyId === t.id || t.status === "OPEN"}
-                  onClick={() => void patchTable(t.id, "OPEN")}
-                  className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-40"
-                >
-                  เปิดโต๊ะ
-                </button>
-                <button
-                  type="button"
-                  disabled={busyId === t.id || t.status === "CLOSED"}
-                  onClick={() => void patchTable(t.id, "CLOSED")}
-                  className="rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-40"
-                >
-                  ปิดโต๊ะ
-                </button>
-                <button
-                  type="button"
-                  disabled={busyId === t.id}
-                  onClick={() => void regenerateQr(t.id)}
-                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 hover:bg-amber-100 disabled:opacity-40"
-                >
-                  QR ใหม่
-                </button>
-                {canManageTables && (
-                  <button
-                    type="button"
-                    disabled={busyId === t.id}
-                    onClick={() => void deleteTable(t.id, t.label)}
-                    className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-40"
-                  >
-                    ลบ
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
+              พิมพ์ QR ทุกโต๊ะ
+            </Link>
+          )}
+        </div>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-500">
+          โต๊ะต้องอยู่สถานะ <span className="font-medium text-stone-700">เปิดรับออเดอร์</span>{" "}
+          ลูกค้าถึงจะสั่งได้ — พิมพ์ป้าย QR ให้ลูกค้าสแกนด้วยกล้องมือถือได้โดยไม่ต้องพิมพ์ลิงก์
+        </p>
+        <ul className="mt-5 space-y-4">
+          {tables.map((t) => {
+            const menuUrl = getCustomerMenuAbsoluteUrl(t.qrToken);
+            const isOpen = t.status === "OPEN";
+            const busy = busyId === t.id;
+            return (
+              <li
+                key={t.id}
+                className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm ring-1 ring-stone-900/5 sm:p-5"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h3 className="text-lg font-semibold tracking-tight text-stone-900">{t.label}</h3>
+                      <span
+                        className={
+                          isOpen
+                            ? "rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-emerald-600/15"
+                            : "rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-600 ring-1 ring-stone-500/10"
+                        }
+                      >
+                        {isOpen ? "เปิดรับออเดอร์" : "ปิด"}
+                      </span>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-1.5 rounded-xl bg-stone-50 px-2.5 py-2 ring-1 ring-stone-900/5">
+                      <code
+                        className="min-w-0 flex-1 truncate font-mono text-xs text-stone-600"
+                        title={menuUrl}
+                      >
+                        /t/{t.qrToken}
+                      </code>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        title="คัดลอกลิงก์เต็ม"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(menuUrl).then(
+                            () =>
+                              void notifySuccess("คัดลอกลิงก์แล้ว", "นำไปแชร์ให้ลูกค้าได้เลย"),
+                            () =>
+                              void notifyError(
+                                "คัดลอกไม่สำเร็จ",
+                                "ลองเลือกข้อความแล้วคัดลอกด้วยมือ",
+                              ),
+                          );
+                        }}
+                        className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800 disabled:opacity-40"
+                      >
+                        <span className="sr-only">คัดลอกลิงก์</span>
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </button>
+                      <Link
+                        href={`/t/${t.qrToken}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="เปิดหน้าลูกค้าในแท็บใหม่"
+                        className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-stone-500 transition hover:bg-white hover:text-stone-800"
+                      >
+                        <span className="sr-only">เปิดหน้าลูกค้า</span>
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
+                        </svg>
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap">
+                    <div
+                      className="inline-flex self-start rounded-xl border border-stone-200 bg-stone-50/80 p-1 shadow-inner"
+                      role="group"
+                      aria-label="สถานะโต๊ะ"
+                    >
+                      <button
+                        type="button"
+                        disabled={busy || isOpen}
+                        onClick={() => void patchTable(t.id, "OPEN")}
+                        className={`rounded-lg px-3.5 py-2 text-sm font-medium transition ${
+                          isOpen
+                            ? "bg-white text-stone-900 shadow-sm ring-1 ring-stone-900/5"
+                            : "text-stone-500 hover:text-stone-800"
+                        } disabled:opacity-40`}
+                      >
+                        เปิด
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || !isOpen}
+                        onClick={() => void patchTable(t.id, "CLOSED")}
+                        className={`rounded-lg px-3.5 py-2 text-sm font-medium transition ${
+                          !isOpen
+                            ? "bg-white text-stone-900 shadow-sm ring-1 ring-stone-900/5"
+                            : "text-stone-500 hover:text-stone-800"
+                        } disabled:opacity-40`}
+                      >
+                        ปิด
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/t/${t.qrToken}`}
+                        className="inline-flex items-center justify-center rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-stone-800"
+                      >
+                        หน้าลูกค้า
+                      </Link>
+                      <Link
+                        href={`/staff/print-qr?token=${encodeURIComponent(t.qrToken)}&label=${encodeURIComponent(t.label)}`}
+                        className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-800 shadow-sm transition hover:border-stone-300 hover:bg-stone-50"
+                      >
+                        พิมพ์ QR
+                      </Link>
+
+                      <details className="relative">
+                        <summary
+                          title="เพิ่มเติม"
+                          className="flex cursor-pointer list-none items-center justify-center rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-stone-700 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 [&::-webkit-details-marker]:hidden"
+                        >
+                          <span className="sr-only">เมนูเพิ่มเติม</span>
+                          <svg className="h-5 w-5 text-stone-500" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                            <path d="M12 8a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
+                          </svg>
+                        </summary>
+                        <div className="absolute right-0 z-20 mt-1.5 w-52 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-lg ring-1 ring-stone-900/5">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-40"
+                            onClick={(e) => {
+                              closeDetailsMenu(e.currentTarget);
+                              void navigator.clipboard.writeText(menuUrl).then(
+                                () =>
+                                  void notifySuccess("คัดลอกลิงก์แล้ว", "นำไปแชร์ให้ลูกค้าได้เลย"),
+                                () =>
+                                  void notifyError(
+                                    "คัดลอกไม่สำเร็จ",
+                                    "ลองเลือกข้อความแล้วคัดลอกด้วยมือ",
+                                  ),
+                              );
+                            }}
+                          >
+                            คัดลอกลิงก์เต็ม
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-40"
+                            onClick={(e) => {
+                              closeDetailsMenu(e.currentTarget);
+                              void regenerateQr(t.id);
+                            }}
+                          >
+                            สร้าง QR ใหม่
+                          </button>
+                          {canManageTables && (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-40"
+                              onClick={(e) => {
+                                closeDetailsMenu(e.currentTarget);
+                                void deleteTable(t.id, t.label);
+                              }}
+                            >
+                              ลบโต๊ะ
+                            </button>
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </section>
     </main>

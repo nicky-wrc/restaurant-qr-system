@@ -1,3 +1,5 @@
+import { getRefreshToken, setTokens } from "./auth-storage";
+
 const DEFAULT_API = "http://localhost:4000";
 
 export function getApiBase(): string {
@@ -10,6 +12,52 @@ export function apiUrl(path: string): string {
 }
 
 export type ApiErrorBody = { error?: { message?: string; code?: string } };
+
+async function tryRefreshAccessToken(): Promise<string | null> {
+  const refresh = getRefreshToken();
+  if (!refresh) return null;
+  try {
+    const res = await fetch(apiUrl("/api/v1/auth/refresh"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: refresh }),
+    });
+    const text = await res.text();
+    let body: unknown = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { error: { message: text } };
+      }
+    }
+    if (!res.ok) return null;
+    const b = body as { accessToken?: string; refreshToken?: string };
+    if (b.accessToken && b.refreshToken) {
+      setTokens(b.accessToken, b.refreshToken);
+      return b.accessToken;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** ถ้าได้ 401 จะลอง refresh token แล้วยิงซ้ำได้ครั้งเดียว */
+async function fetchWithAccessTokenRetry(
+  input: string,
+  init: RequestInit | undefined,
+  accessToken: string,
+): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  headers.set("Authorization", `Bearer ${accessToken}`);
+  const first = await fetch(input, { ...init, headers });
+  if (first.status !== 401) return first;
+  const next = await tryRefreshAccessToken();
+  if (!next) return first;
+  headers.set("Authorization", `Bearer ${next}`);
+  return fetch(input, { ...init, headers });
+}
 
 export function mediaUrl(pathOrUrl: string | null | undefined): string | null {
   if (pathOrUrl == null || pathOrUrl === "") return null;
@@ -24,13 +72,11 @@ export async function uploadMenuItemImage(
 ): Promise<{ imageUrl: string }> {
   const fd = new FormData();
   fd.append("image", file);
-  const headers = new Headers();
-  headers.set("Authorization", `Bearer ${accessToken}`);
-  const res = await fetch(apiUrl("/api/v1/menu/items/upload-image"), {
-    method: "POST",
-    headers,
-    body: fd,
-  });
+  const res = await fetchWithAccessTokenRetry(
+    apiUrl("/api/v1/menu/items/upload-image"),
+    { method: "POST", body: fd },
+    accessToken,
+  );
   const text = await res.text();
   let body: unknown = null;
   if (text) {
@@ -55,10 +101,9 @@ export async function apiFetch<T = unknown>(
   if (!headers.has("Content-Type") && init?.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  if (init?.accessToken) {
-    headers.set("Authorization", `Bearer ${init.accessToken}`);
-  }
-  const res = await fetch(apiUrl(path), { ...init, headers });
+  const res = init?.accessToken
+    ? await fetchWithAccessTokenRetry(apiUrl(path), { ...init, headers }, init.accessToken)
+    : await fetch(apiUrl(path), { ...init, headers });
   const text = await res.text();
   let body: unknown = null;
   if (text) {

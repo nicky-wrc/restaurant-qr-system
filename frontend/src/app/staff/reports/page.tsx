@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
 import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/order-flow";
-import { notifyError } from "@/lib/notify";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 type Summary = {
   from: string;
@@ -74,6 +74,46 @@ export default function StaffReportsPage() {
     void load(from, to);
   }
 
+  function downloadCsv() {
+    if (!summary) return;
+    const rows: string[][] = [];
+    rows.push(["รายงานสรุปยอดขาย"]);
+    rows.push(["จาก", summary.from]);
+    rows.push(["ถึง", summary.to]);
+    rows.push([]);
+    rows.push(["ตัวชี้วัด", "ค่า"]);
+    rows.push(["ออเดอร์ทั้งหมด", String(summary.orderCount)]);
+    rows.push(["ออเดอร์เสิร์ฟแล้ว", String(summary.servedOrderCount)]);
+    rows.push(["รายได้รวม (บาท)", summary.revenueBaht]);
+    rows.push(["เฉลี่ยต่อบิล (บาท)", summary.averageServedOrderBaht ?? ""]);
+    rows.push([]);
+    rows.push(["สถานะ", "จำนวน"]);
+    for (const st of Object.keys(ORDER_STATUS_LABELS) as OrderStatus[]) {
+      rows.push([ORDER_STATUS_LABELS[st], String(summary.byStatus[st] ?? 0)]);
+    }
+    rows.push([]);
+    rows.push(["อันดับ", "เมนู", "จำนวนที่ขาย (จาน)"]);
+    summary.topItems.forEach((it, i) => {
+      rows.push([String(i + 1), it.name, String(it.quantitySold)]);
+    });
+
+    const csv =
+      "\uFEFF" +
+      rows
+        .map((line) =>
+          line.map((cell) => (/,|"|\n|\r/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell)).join(","),
+        )
+        .join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `report-${summary.from}_${summary.to}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    void notifySuccess("ดาวน์โหลดแล้ว", "ไฟล์ CSV อยู่ในโฟลเดอร์ดาวน์โหลดของเบราว์เซอร์");
+  }
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-8">
@@ -114,6 +154,15 @@ export default function StaffReportsPage() {
         >
           {loading ? "กำลังโหลด…" : "โหลดรายงาน"}
         </button>
+        {summary && !loading && (
+          <button
+            type="button"
+            onClick={downloadCsv}
+            className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
+          >
+            ส่งออก CSV
+          </button>
+        )}
       </form>
 
       {summary && !loading && (

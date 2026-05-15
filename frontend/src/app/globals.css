@@ -106,3 +106,18 @@ body {
 .swal-backdrop-out {
   animation: swal-backdrop-out 0.2s ease-in forwards;
 }
+
+/* ป้าย QR พิมพ์ — แยกโต๊ะเป็นหน้า (เมื่อพิมพ์ทุกโต๊ะ) */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-slip-page {
+    page-break-after: always;
+  }
+}
