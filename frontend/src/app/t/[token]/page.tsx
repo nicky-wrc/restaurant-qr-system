@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, mediaUrl } from "@/lib/api";
+import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify";
 
 type MenuItem = {
   id: string;
@@ -22,9 +23,8 @@ export default function CustomerMenuPage() {
   const [tableStatus, setTableStatus] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [lineNotes, setLineNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -36,9 +36,8 @@ export default function CustomerMenuPage() {
         setTableLabel(d.table.label);
         setTableStatus(d.table.status);
         setCategories(d.categories);
-        setErr(null);
       })
-      .catch((e: Error) => setErr(e.message))
+      .catch((e: Error) => void notifyError("โหลดเมนูไม่สำเร็จ", e.message))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -65,6 +64,11 @@ export default function CustomerMenuPage() {
       const n = (next[id] ?? 0) - 1;
       if (n <= 0) {
         delete next[id];
+        setLineNotes((ln) => {
+          const copy = { ...ln };
+          delete copy[id];
+          return copy;
+        });
         return next;
       }
       next[id] = n;
@@ -73,13 +77,18 @@ export default function CustomerMenuPage() {
   }
 
   async function submit() {
-    setMsg(null);
-    setErr(null);
     const items = Object.entries(cart)
       .filter(([, q]) => q > 0)
-      .map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+      .map(([menuItemId, quantity]) => {
+        const note = lineNotes[menuItemId]?.trim();
+        return {
+          menuItemId,
+          quantity,
+          ...(note ? { notes: note } : {}),
+        };
+      });
     if (items.length === 0) {
-      setErr("เลือกเมนูอย่างน้อย 1 รายการ");
+      void notifyInfo("ยังไม่ได้เลือกเมนู", "เพิ่มจำนวนเมนูในตะกร้าก่อนกดสั่ง");
       return;
     }
     try {
@@ -88,9 +97,13 @@ export default function CustomerMenuPage() {
         body: JSON.stringify({ items }),
       });
       setCart({});
-      setMsg("ส่งออเดอร์แล้ว — ครัวได้รับแล้ว");
+      setLineNotes({});
+      void notifySuccess("ส่งออเดอร์แล้ว", "ครัวได้รับรายการของคุณแล้ว");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "สั่งไม่สำเร็จ");
+      void notifyError(
+        "สั่งไม่สำเร็จ",
+        e instanceof Error ? e.message : "ลองใหม่อีกครั้ง",
+      );
     }
   }
 
@@ -114,12 +127,6 @@ export default function CustomerMenuPage() {
         )}
       </header>
       <main className="mx-auto max-w-lg px-4 py-6">
-        {err && (
-          <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{err}</p>
-        )}
-        {msg && (
-          <p className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{msg}</p>
-        )}
         <div className="space-y-8">
           {categories.map((cat) => (
             <section key={cat.id}>
@@ -127,11 +134,25 @@ export default function CustomerMenuPage() {
                 {cat.name}
               </h2>
               <ul className="mt-3 space-y-3">
-                {cat.items.map((item) => (
+                {cat.items.map((item) => {
+                  const imgSrc = mediaUrl(item.imageUrl);
+                  return (
                   <li
                     key={item.id}
-                    className="flex gap-3 rounded-xl border border-stone-200 bg-white p-3 shadow-sm"
+                    className="flex flex-col gap-2 rounded-xl border border-stone-200 bg-white p-3 shadow-sm"
                   >
+                    <div className="flex gap-3">
+                    {imgSrc ? (
+                      <img
+                        src={imgSrc}
+                        alt=""
+                        className="h-20 w-20 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-xs text-stone-400">
+                        ไม่มีรูป
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-stone-900">{item.name}</p>
                       {item.description && (
@@ -160,8 +181,24 @@ export default function CustomerMenuPage() {
                         </button>
                       </div>
                     </div>
+                    </div>
+                    {(cart[item.id] ?? 0) > 0 && (
+                      <label className="block text-xs text-stone-500">
+                        หมายเหตุต่อรายการ (ไม่บังคับ)
+                        <input
+                          className="mt-1 w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm text-stone-900"
+                          placeholder="เช่น ไม่เผ็ด / เอาไข่ดาว"
+                          maxLength={500}
+                          value={lineNotes[item.id] ?? ""}
+                          onChange={(e) =>
+                            setLineNotes((m) => ({ ...m, [item.id]: e.target.value }))
+                          }
+                        />
+                      </label>
+                    )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
           ))}

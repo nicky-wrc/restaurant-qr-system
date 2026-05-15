@@ -14,9 +14,18 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(10),
 });
 
-export const authLimiter = rateLimit({
+/** ป้องกัน brute-force ที่ login — ไม่ใช้กับ GET /me (หน้า staff เรียกบ่อย) */
+export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/** refresh/logout เรียกได้บ่อยกว่า login แต่ยังจำกัดการสุ่ม token */
+export const refreshLogoutLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -25,6 +34,7 @@ export const authRouter = Router();
 
 authRouter.post(
   "/login",
+  loginLimiter,
   asyncHandler(async (req, res) => {
     const body = loginSchema.parse(req.body);
     const result = await authService.login(body.email, body.password);
@@ -34,6 +44,7 @@ authRouter.post(
 
 authRouter.post(
   "/refresh",
+  refreshLogoutLimiter,
   asyncHandler(async (req, res) => {
     const body = refreshSchema.parse(req.body);
     const result = await authService.refresh(body.refreshToken);
@@ -43,6 +54,7 @@ authRouter.post(
 
 authRouter.post(
   "/logout",
+  refreshLogoutLimiter,
   asyncHandler(async (req, res) => {
     const body = refreshSchema.parse(req.body);
     await authService.logout(body.refreshToken);

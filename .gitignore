@@ -6,6 +6,9 @@ node_modules/
 .env.*
 !.env.example
 
+# Uploaded menu images (local dev)
+backend/uploads/
+
 # Build / cache
 .next/
 out/

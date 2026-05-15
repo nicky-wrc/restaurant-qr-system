@@ -1,13 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
 import { apiFetch, getApiBase } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth-storage";
-
-type OrderStatus = "PENDING" | "COOKING" | "DONE" | "SERVED";
+import {
+  type OrderStatus,
+  canAdvanceOrder,
+  nextOrderStatus,
+  orderAdvanceButtonLabel,
+} from "@/lib/order-flow";
+import { notifyError } from "@/lib/notify";
 
 type Order = {
   id: string;
@@ -15,31 +19,13 @@ type Order = {
   total: string | null;
   createdAt: string;
   table: { id: string; label: string };
-  items: { id: string; quantity: number; menuItem: { name: string } }[];
+  items: { id: string; quantity: number; menuItem: { name: string }; notes?: string | null }[];
 };
-
-function nextStatus(s: OrderStatus): OrderStatus | null {
-  if (s === "PENDING") return "COOKING";
-  if (s === "COOKING") return "DONE";
-  if (s === "DONE") return "SERVED";
-  return null;
-}
-
-function canClick(role: string, from: OrderStatus, to: OrderStatus): boolean {
-  if (from === "PENDING" && to === "COOKING")
-    return ["CHEF", "MANAGER", "OWNER"].includes(role);
-  if (from === "COOKING" && to === "DONE")
-    return ["CHEF", "MANAGER", "OWNER"].includes(role);
-  if (from === "DONE" && to === "SERVED")
-    return ["WAITER", "MANAGER", "OWNER"].includes(role);
-  return false;
-}
 
 export default function KitchenPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [role, setRole] = useState<string>("");
-  const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -66,7 +52,7 @@ export default function KitchenPage() {
     s.on("order:created", () => void load());
     s.on("order:updated", () => void load());
 
-    void load().catch((e: Error) => setErr(e.message));
+    void load().catch((e: Error) => void notifyError("โหลดออเดอร์ไม่สำเร็จ", e.message));
 
     return () => {
       s.disconnect();
@@ -74,11 +60,10 @@ export default function KitchenPage() {
   }, [router, load]);
 
   async function advance(order: Order) {
-    const n = nextStatus(order.status);
-    if (!n || !canClick(role, order.status, n)) return;
+    const n = nextOrderStatus(order.status);
+    if (!n || !canAdvanceOrder(role, order.status, n)) return;
     const token = getAccessToken();
     if (!token) return;
-    setErr(null);
     try {
       await apiFetch(`/api/v1/orders/${order.id}/status`, {
         method: "PATCH",
@@ -87,37 +72,25 @@ export default function KitchenPage() {
       });
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Error");
+      void notifyError(
+        "อัปเดตสถานะไม่สำเร็จ",
+        e instanceof Error ? e.message : "เกิดข้อผิดพลาด",
+      );
     }
   }
 
   return (
     <div className="min-h-screen bg-stone-950 text-stone-100">
-      <header className="border-b border-stone-800 bg-stone-900 px-4 py-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">Kitchen Display</h1>
-            <p className="text-xs text-stone-400">Role: {role || "…"} · Realtime</p>
-          </div>
-          <Link href="/staff/dashboard" className="text-sm text-amber-400 hover:underline">
-            แดชบอร์ด
-          </Link>
-        </div>
-      </header>
       <main className="mx-auto max-w-6xl px-4 py-6">
-        {err && <p className="mb-4 rounded-lg bg-red-900/40 px-3 py-2 text-sm text-red-200">{err}</p>}
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold">Kitchen Display</h1>
+          <p className="text-xs text-stone-400">Realtime · role {role || "…"}</p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {orders.map((o) => {
-            const n = nextStatus(o.status);
-            const enabled = n && canClick(role, o.status, n);
-            const label =
-              o.status === "PENDING"
-                ? "รับเข้าครัว"
-                : o.status === "COOKING"
-                  ? "พร้อมเสิร์ฟ"
-                  : o.status === "DONE"
-                    ? "เสิร์ฟแล้ว"
-                    : "—";
+            const n = nextOrderStatus(o.status);
+            const enabled = n && canAdvanceOrder(role, o.status, n);
+            const label = orderAdvanceButtonLabel(o.status);
             return (
               <article
                 key={o.id}
@@ -144,6 +117,9 @@ export default function KitchenPage() {
                   {o.items.map((i) => (
                     <li key={i.id}>
                       ×{i.quantity} {i.menuItem.name}
+                      {i.notes ? (
+                        <span className="block text-xs text-stone-500">({i.notes})</span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

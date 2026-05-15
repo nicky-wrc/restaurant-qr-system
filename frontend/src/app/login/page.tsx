@@ -5,17 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { setTokens } from "@/lib/auth-storage";
+import { notifyError } from "@/lib/notify";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("owner@example.com");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setLoading(true);
     try {
       const data = await apiFetch<{
@@ -29,7 +28,10 @@ export default function LoginPage() {
       router.push("/staff/dashboard");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      void notifyError(
+        "เข้าสู่ระบบไม่สำเร็จ",
+        err instanceof Error ? err.message : "ตรวจสอบอีเมลและรหัสผ่าน",
+      );
     } finally {
       setLoading(false);
     }
@@ -67,9 +69,6 @@ export default function LoginPage() {
               required
             />
           </div>
-          {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-          )}
           <button
             type="submit"
             disabled={loading}

@@ -8,11 +8,11 @@ export default function Home() {
       <div className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-16">
         <div className="space-y-2">
           <p className="text-sm font-medium uppercase tracking-wide text-amber-700">
-            Phase 1 — Core backend & flows
+            Phase 3 — Reports & operations
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">ระบบสั่งอาหารผ่าน QR</h1>
           <p className="text-stone-600">
-            ล็อกอินพนักงาน · เมนู/โต๊ะ/ออเดอร์ API · ลูกค้าสแกน QR สั่งได้ · ครัวรับ realtime
+            ล็อกอินพนักงาน · เมนู/โต๊ะ/ออเดอร์ · รายงานยอดขาย · ลูกค้าสแกน QR · ครัว realtime
           </p>
         </div>
 
@@ -22,7 +22,7 @@ export default function Home() {
             className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm transition hover:border-stone-300 hover:shadow"
           >
             <p className="text-sm font-semibold text-stone-900">พนักงาน</p>
-            <p className="mt-1 text-sm text-stone-500">เข้าสู่ระบบ → แดชบอร์ด & KDS</p>
+            <p className="mt-1 text-sm text-stone-500">เข้าสู่ระบบ → แดชบอร์ด / ออเดอร์ / รายงาน / ครัว / เมนู / พนักงาน</p>
           </Link>
           <a
             href={`${apiUrl}/health`}

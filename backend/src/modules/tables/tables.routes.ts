@@ -11,7 +11,7 @@ export const tablesRouter = Router();
 
 tablesRouter.get(
   "/",
-  requireRoles(UserRole.OWNER, UserRole.MANAGER, UserRole.WAITER),
+  requireRoles(UserRole.OWNER, UserRole.MANAGER, UserRole.WAITER, UserRole.CHEF),
   asyncHandler(async (_req, res) => {
     const tables = await prisma.table.findMany({ orderBy: { label: "asc" } });
     res.json({

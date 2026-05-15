@@ -1,10 +1,12 @@
 import { Router } from "express";
+import multer from "multer";
 import { z } from "zod";
 import { Prisma, UserRole } from "@prisma/client";
 import { asyncHandler } from "../../lib/async-handler";
 import { requireRoles } from "../../middleware/require-roles";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
+import { menuImageUpload, MENU_UPLOAD_URL_PREFIX } from "./menu-image-upload";
 
 export const menuRouter = Router();
 
@@ -13,6 +15,22 @@ const priceSchema = z.union([z.number().positive(), z.string().regex(/^\d+(\.\d{
 function toDecimal(v: z.infer<typeof priceSchema>): Prisma.Decimal {
   return new Prisma.Decimal(typeof v === "number" ? v.toString() : v);
 }
+
+function isAllowedMenuImageUrl(s: string | null): boolean {
+  if (s == null) return true;
+  if (s.length > 2000) return false;
+  if (/^https?:\/\//i.test(s)) return true;
+  if (!s.startsWith(`${MENU_UPLOAD_URL_PREFIX}/`)) return false;
+  const file = s.slice(MENU_UPLOAD_URL_PREFIX.length + 1);
+  return file.length > 0 && !file.includes("/") && !file.includes("..") && /^[a-zA-Z0-9._-]+$/.test(file);
+}
+
+const imageUrlField = z.preprocess(
+  (v) => (v === "" ? null : v),
+  z
+    .union([z.undefined(), z.null(), z.string().max(2000)])
+    .refine((s) => s === undefined || isAllowedMenuImageUrl(s), "Invalid imageUrl"),
+);
 
 menuRouter.get(
   "/tree",
@@ -98,9 +116,41 @@ const createItemSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional().nullable(),
   price: priceSchema,
-  imageUrl: z.string().url().max(2000).optional().nullable(),
+  imageUrl: imageUrlField,
   isAvailable: z.boolean().optional(),
 });
+
+menuRouter.post(
+  "/items/upload-image",
+  requireRoles(UserRole.OWNER, UserRole.MANAGER),
+  (req, res, next) => {
+    menuImageUpload.single("image")(req, res, (err: unknown) => {
+      if (err) {
+        if (err instanceof multer.MulterError) {
+          if (err.code === "LIMIT_FILE_SIZE") {
+            return next(new AppError(400, "ไฟล์ใหญ่เกิน 3 MB", "FILE_TOO_LARGE"));
+          }
+          return next(new AppError(400, err.message, "UPLOAD_ERROR"));
+        }
+        return next(
+          new AppError(
+            400,
+            err instanceof Error ? err.message : "อัปโหลดไม่สำเร็จ",
+            "UPLOAD_ERROR",
+          ),
+        );
+      }
+      next();
+    });
+  },
+  asyncHandler(async (req, res) => {
+    if (!req.file) {
+      throw new AppError(400, "กรุณาเลือกไฟล์รูป", "NO_FILE");
+    }
+    const imageUrl = `${MENU_UPLOAD_URL_PREFIX}/${req.file.filename}`;
+    res.status(201).json({ imageUrl });
+  }),
+);
 
 menuRouter.post(
   "/items",

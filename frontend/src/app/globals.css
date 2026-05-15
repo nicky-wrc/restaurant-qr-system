@@ -25,3 +25,84 @@ body {
     text-wrap: balance;
   }
 }
+
+/* SweetAlert2 — modal แบบเลื่อนลง + โทน stone */
+.swal-popup-rounded {
+  border-radius: 1rem !important;
+  padding: 1.5rem 1.25rem 1.25rem !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid #e7e5e4 !important;
+}
+
+.swal2-title {
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.swal-btn-confirm {
+  border-radius: 0.5rem !important;
+  padding-left: 1.35rem !important;
+  padding-right: 1.35rem !important;
+  font-weight: 600 !important;
+}
+
+.swal-btn-cancel {
+  border-radius: 0.5rem !important;
+  font-weight: 500 !important;
+}
+
+@keyframes swal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes swal-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.99);
+  }
+}
+
+@keyframes swal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes swal-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.swal-animate-in {
+  animation: swal-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.swal-animate-out {
+  animation: swal-out 0.22s ease-in forwards;
+}
+
+.swal-backdrop-in {
+  animation: swal-backdrop-in 0.28s ease-out forwards;
+}
+
+.swal-backdrop-out {
+  animation: swal-backdrop-out 0.2s ease-in forwards;
+}
