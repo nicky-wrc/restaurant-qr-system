@@ -1,8 +1,13 @@
 import { Prisma, PrismaClient, UserRole, TableStatus } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+/** Dev-only password for seed user (change in production). */
+const OWNER_PASSWORD = "ChangeMe123!";
+
 async function main() {
+  await prisma.refreshToken.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.menuItem.deleteMany();
@@ -10,10 +15,12 @@ async function main() {
   await prisma.table.deleteMany();
   await prisma.user.deleteMany();
 
+  const passwordHash = await bcrypt.hash(OWNER_PASSWORD, 12);
+
   await prisma.user.create({
     data: {
       email: "owner@example.com",
-      passwordHash: "$2b$10$placeholder_hash_replace_in_phase1_auth",
+      passwordHash,
       name: "Demo Owner",
       role: UserRole.OWNER,
     },
@@ -45,10 +52,12 @@ async function main() {
 
   await prisma.table.createMany({
     data: [
-      { label: "โต๊ะ 1", status: TableStatus.CLOSED },
+      { label: "โต๊ะ 1", status: TableStatus.OPEN },
       { label: "โต๊ะ 2", status: TableStatus.CLOSED },
     ],
   });
+
+  console.log(`Seed OK. Login: owner@example.com / ${OWNER_PASSWORD}`);
 }
 
 main()
