@@ -6,6 +6,7 @@ import { asyncHandler } from "../../lib/async-handler";
 import { requireRoles } from "../../middleware/require-roles";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
+import { sortTablesByLabel } from "../../lib/sort-table-label";
 
 export const tablesRouter = Router();
 
@@ -13,9 +14,10 @@ tablesRouter.get(
   "/",
   requireRoles(UserRole.OWNER, UserRole.MANAGER, UserRole.WAITER, UserRole.CHEF),
   asyncHandler(async (_req, res) => {
-    const tables = await prisma.table.findMany({ orderBy: { label: "asc" } });
+    const tables = await prisma.table.findMany();
+    const sorted = sortTablesByLabel(tables);
     res.json({
-      tables: tables.map((t) => ({
+      tables: sorted.map((t) => ({
         id: t.id,
         label: t.label,
         qrToken: t.qrToken,

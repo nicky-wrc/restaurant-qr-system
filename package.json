@@ -15,7 +15,8 @@
     "db:migrate": "npm run prisma:migrate -w backend",
     "db:push": "npm run prisma:push -w backend",
     "db:seed": "npm run prisma:seed -w backend",
-    "db:studio": "npm run prisma:studio -w backend"
+    "db:studio": "npm run prisma:studio -w backend",
+    "check:repo": "node scripts/repo-health-check.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
