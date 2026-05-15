@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
@@ -11,12 +11,86 @@ import { notifyConfirm, notifyError, notifySuccess } from "@/lib/notify";
 type Table = { id: string; label: string; qrToken: string; status: string };
 type Role = string;
 
+const TABLES_PAGE_SIZE = 10;
+
+function sortTablesByLabel(a: Table, b: Table): number {
+  return a.label.localeCompare(b.label, "th", { numeric: true, sensitivity: "base" });
+}
+
+function TablesPaginationBar({
+  sortedLength,
+  rangeStart,
+  rangeEnd,
+  page,
+  pageCount,
+  onPrev,
+  onNext,
+  className = "",
+}: {
+  sortedLength: number;
+  rangeStart: number;
+  rangeEnd: number;
+  page: number;
+  pageCount: number;
+  onPrev: () => void;
+  onNext: () => void;
+  className?: string;
+}) {
+  if (sortedLength <= TABLES_PAGE_SIZE) return null;
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200/80 bg-stone-50/80 px-4 py-3 text-sm text-stone-700 ring-1 ring-stone-900/5 ${className}`}
+    >
+      <p>
+        แสดง{" "}
+        <span className="font-medium text-stone-900">
+          {rangeStart}–{rangeEnd}
+        </span>{" "}
+        จาก {sortedLength} โต๊ะ · หน้า {page}/{pageCount}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={page <= 1}
+          onClick={onPrev}
+          className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-800 shadow-sm transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          ก่อนหน้า
+        </button>
+        <button
+          type="button"
+          disabled={page >= pageCount}
+          onClick={onNext}
+          className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-800 shadow-sm transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          ถัดไป
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function StaffDashboardPage() {
   const router = useRouter();
   const [tables, setTables] = useState<Table[]>([]);
   const [role, setRole] = useState<Role>("");
   const [newLabel, setNewLabel] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [tablePage, setTablePage] = useState(1);
+
+  const sortedTables = useMemo(() => [...tables].sort(sortTablesByLabel), [tables]);
+  const tablePageCount = Math.max(1, Math.ceil(sortedTables.length / TABLES_PAGE_SIZE));
+  const safeTablePage = Math.min(tablePage, tablePageCount);
+  const pagedTables = useMemo(
+    () =>
+      sortedTables.slice(
+        (safeTablePage - 1) * TABLES_PAGE_SIZE,
+        safeTablePage * TABLES_PAGE_SIZE,
+      ),
+    [sortedTables, safeTablePage],
+  );
+  const tableRangeStart = sortedTables.length === 0 ? 0 : (safeTablePage - 1) * TABLES_PAGE_SIZE + 1;
+  const tableRangeEnd = Math.min(safeTablePage * TABLES_PAGE_SIZE, sortedTables.length);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -39,6 +113,10 @@ export default function StaffDashboardPage() {
       void notifyError("โหลดข้อมูลไม่สำเร็จ", e.message),
     );
   }, [router, load]);
+
+  useEffect(() => {
+    setTablePage((p) => Math.min(p, tablePageCount));
+  }, [tablePageCount]);
 
   const canManageTables = role === "OWNER" || role === "MANAGER";
 
@@ -190,8 +268,19 @@ export default function StaffDashboardPage() {
           โต๊ะต้องอยู่สถานะ <span className="font-medium text-stone-700">เปิดรับออเดอร์</span>{" "}
           ลูกค้าถึงจะสั่งได้ — พิมพ์ป้าย QR ให้ลูกค้าสแกนด้วยกล้องมือถือได้โดยไม่ต้องพิมพ์ลิงก์
         </p>
+        <TablesPaginationBar
+          className="mt-4"
+          sortedLength={sortedTables.length}
+          rangeStart={tableRangeStart}
+          rangeEnd={tableRangeEnd}
+          page={safeTablePage}
+          pageCount={tablePageCount}
+          onPrev={() => setTablePage((p) => Math.max(1, p - 1))}
+          onNext={() => setTablePage((p) => Math.min(tablePageCount, p + 1))}
+        />
+
         <ul className="mt-5 space-y-4">
-          {tables.map((t) => {
+          {pagedTables.map((t) => {
             const menuUrl = getCustomerMenuAbsoluteUrl(t.qrToken);
             const isOpen = t.status === "OPEN";
             const busy = busyId === t.id;
@@ -377,6 +466,17 @@ export default function StaffDashboardPage() {
             );
           })}
         </ul>
+
+        <TablesPaginationBar
+          className="mt-4"
+          sortedLength={sortedTables.length}
+          rangeStart={tableRangeStart}
+          rangeEnd={tableRangeEnd}
+          page={safeTablePage}
+          pageCount={tablePageCount}
+          onPrev={() => setTablePage((p) => Math.max(1, p - 1))}
+          onNext={() => setTablePage((p) => Math.min(tablePageCount, p + 1))}
+        />
       </section>
     </main>
   );
