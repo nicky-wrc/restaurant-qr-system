@@ -1,0 +1,14 @@
+# https://editorconfig.org — keep README/markdown as UTF-8 so GitHub renders them
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.{js,jsx,ts,tsx,mjs,cjs,json,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+charset = utf-8
